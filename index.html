@@ -16,6 +16,29 @@ main{min-width:0}.topbar{height:70px;background:#fff;border-bottom:1px solid var
 @media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{padding:12px;gap:10px}.brand{padding:4px}.nav{display:flex;overflow:auto}.navlabel,.sidebottom{display:none}.nav button{white-space:nowrap;padding:9px}.topbar{height:58px;padding:0 16px}.content{padding:20px 15px}.stats{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}}
 @media(max-width:480px){.welcome{display:block}.welcome .btn{margin-top:14px}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}.stats{gap:9px}.card{padding:14px}.statnum{font-size:23px}}
 </style></head>
+ <script type="module">
+import {getApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getFirestore,doc,getDoc,setDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+window.firestoreReady=(async()=>{
+ const app=getApp();
+ const fs=getFirestore(app,"jeweldesk");
+ window.setJewelDeskDb({
+  collection(name){
+   return {doc(id){
+    const ref=doc(fs,name,id);
+    return {
+     get:async()=>{
+      const s=await getDoc(ref);
+      return {exists:s.exists(),data:()=>s.data()};
+     },
+     set:(data)=>setDoc(ref,{...data,updatedAt:serverTimestamp()})
+    };
+   }};
+  }
+ });
+})();
+     </script>
 <body>
 <div class="shell">
 <aside class="sidebar">
@@ -49,10 +72,66 @@ main{min-width:0}.topbar{height:70px;background:#fff;border-bottom:1px solid var
 <script>
 const $=s=>document.querySelector(s);
 const firebaseConfig={apiKey:"AIzaSyA4R6HEM913ISdsUMaAFalIVPSTMM4j-lk",authDomain:"jeweldesk-67aab.firebaseapp.com",projectId:"jeweldesk-67aab",storageBucket:"jeweldesk-67aab.firebasestorage.app",messagingSenderId:"967472227227",appId:"1:967472227227:web:e742d0fb74987d3934b73e",measurementId:"G-95GJHNLZ12"};
-firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.firestore();const OWNER_EMAIL='sanyampirodia@gmail.com';let cloudReady=false,currentUser=null;
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth();let db;window.setJewelDeskDb=x=>db=x;;const OWNER_EMAIL='sanyampirodia@gmail.com';let cloudReady=false,currentUser=null;
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem('jd_'+k))??d}catch{return d}};
-const save=(k,v)=>{localStorage.setItem('jd_'+k,JSON.stringify(v));if(cloudReady&&currentUser&&currentUser.email.toLowerCase()===OWNER_EMAIL){db.collection('appData').doc(k).set({items:v,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(e=>alert('Cloud save failed: '+e.message));}};
-async function loadCloudData(){for(const k of ['orders','customers','makers','stones','payments']){const snap=await db.collection('appData').doc(k).get();if(snap.exists&&Array.isArray(snap.data().items))localStorage.setItem('jd_'+k,JSON.stringify(snap.data().items));}orders=load('orders',orders);customers=load('customers',customers);makers=load('makers',makers);stones=load('stones',stones);payments=load('payments',payments);cloudReady=true;render();}
+const save=(k,v)=>{
+  localStorage.setItem('jd_'+k,JSON.stringify(v));
+
+  if(cloudReady && currentUser &&
+     currentUser.email.toLowerCase()===OWNER_EMAIL){
+    db.collection('appData').doc(k)
+      .set({items:v})
+      .catch(e=>alert('Cloud save failed: '+e.message));
+  }
+};async function loadCloudData(){
+  await window.firestoreReady;
+
+  for(const k of ['orders','customers','makers','stones','payments']){
+    const snap=await db.collection('appData').doc(k).get();
+
+    if(snap.exists && Array.isArray(snap.data().items)){
+      localStorage.setItem('jd_'+k,JSON.stringify(snap.data().items));
+    } else {
+      // First-time setup: upload existing local records
+      await db.collection('appData').doc(k).set({
+        items:load(k,[])
+      });
+    }
+  }
+
+  orders=load('orders',orders);
+  customers=load('customers',customers);
+  makers=load('makers',makers);
+  stones=load('stones',stones);
+  payments=load('payments',payments);
+
+  cloudReady=true;
+  render();
+ }async function loadCloudData(){
+  await window.firestoreReady;
+
+  for(const k of ['orders','customers','makers','stones','payments']){
+    const snap=await db.collection('appData').doc(k).get();
+
+    if(snap.exists && Array.isArray(snap.data().items)){
+      localStorage.setItem('jd_'+k,JSON.stringify(snap.data().items));
+    } else {
+      // First-time setup: upload existing local records
+      await db.collection('appData').doc(k).set({
+        items:load(k,[])
+      });
+    }
+  }
+
+  orders=load('orders',orders);
+  customers=load('customers',customers);
+  makers=load('makers',makers);
+  stones=load('stones',stones);
+  payments=load('payments',payments);
+
+  cloudReady=true;
+  render();
+ }
 $('#loginBtn').addEventListener('click',async()=>{const msg=$('#loginMessage');msg.textContent='Signing in…';try{const email=$('#loginEmail').value.trim();if(email.toLowerCase()!==OWNER_EMAIL)throw new Error('Only the designated owner account can sign in to this first release.');await auth.signInWithEmailAndPassword(email,$('#loginPassword').value);}catch(e){msg.textContent=e.message;}});
 auth.onAuthStateChanged(async user=>{currentUser=user;if(user&&user.email&&user.email.toLowerCase()===OWNER_EMAIL){$('#loginGate').style.display='none';try{await loadCloudData();}catch(e){cloudReady=false;$('#loginGate').style.display='flex';$('#loginMessage').textContent='Could not load cloud data: '+e.message;}}else{cloudReady=false;$('#loginGate').style.display='flex';if(user)await auth.signOut();}});
 let orders=load('orders',[
